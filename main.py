@@ -9,7 +9,8 @@ app = FastAPI(title="News Assistant Backend")
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "*" # TODO: Replace with your Vercel/Cloud Run URL once deployed
+    "https://news-frontend-997996759702.us-west1.run.app",
+    "*"
 ]
 
 app.add_middleware(
