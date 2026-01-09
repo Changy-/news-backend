@@ -7,10 +7,7 @@ app = FastAPI(title="News Assistant Backend")
 # CORS - Allow requests from frontend
 # In production, you should replace "*" with your public frontend URL
 origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
     "https://news-frontend-997996759702.us-west1.run.app",
-    "*"
 ]
 
 app.add_middleware(
