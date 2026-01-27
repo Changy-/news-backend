@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel
 from typing import List, Optional
 import concurrent.futures
+import time
 from services import news_service, ai_service
 
 router = APIRouter()
@@ -32,13 +33,8 @@ def summarize_article_task(article):
 
 @router.get("/news", response_model=List[Article])
 def get_news():
+    start_time = time.time()
     try:
-        # raw_articles = news_service.fetch_techcrunch_news(limit=5) # Limit to 5 for speed in demo, or 10 as requested
-        # # Use 5 to avoid long wait times and potential rate limits during dev
-        # # User asked for 'fetch to 10', so I'll try 10 but use threads.
-        
-        # If I strictly follow fetch TO 10, it implies up to 10.
-        # Let's do 10.
         raw_articles = news_service.fetch_techcrunch_news(limit=10)
         
         processed_articles = []
@@ -50,7 +46,9 @@ def get_news():
                     processed_articles.append(data)
                 except Exception as exc:
                     print(f'Article processing generated an exception: {exc}')
-                    
+        
+        latency = time.time() - start_time
+        print(f"LATENCY: /news endpoint took {latency:.2f}s for {len(processed_articles)} articles", flush=True)
         return processed_articles
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -65,11 +63,14 @@ def chat(request: ArticleRequest):
 
 @router.post("/voice-chat")
 def voice_chat(request: ArticleRequest):
+    start_time = time.time()
     try:
         audio_data = ai_service.generate_voice_response(request.content, request.query)
         if not audio_data:
             raise HTTPException(status_code=500, detail="Failed to generate voice response")
         
+        latency = time.time() - start_time
+        print(f"LATENCY: /voice-chat endpoint took {latency:.2f}s", flush=True)
         from fastapi.responses import Response
         return Response(content=audio_data, media_type="audio/wav")
     except Exception as e:
@@ -81,12 +82,14 @@ class SpeakRequest(BaseModel):
 
 @router.post("/speak")
 def speak(request: SpeakRequest):
+    start_time = time.time()
     try:
         audio_data = ai_service.generate_audio(request.text)
         if not audio_data:
             raise HTTPException(status_code=500, detail="Failed to generate audio")
         
-        # Return audio bytes. Gemini usually returns WAV-formatted data in the inline_data.
+        latency = time.time() - start_time
+        print(f"LATENCY: /speak endpoint took {latency:.2f}s for {len(request.text)} chars", flush=True)
         from fastapi.responses import Response
         return Response(content=audio_data, media_type="audio/wav")
     except Exception as e:

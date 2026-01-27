@@ -8,6 +8,7 @@ app = FastAPI(title="News Assistant Backend")
 # In production, you should replace "*" with your public frontend URL
 origins = [
     "https://news-frontend-997996759702.us-west1.run.app",
+    "http://localhost:3000"
 ]
 
 app.add_middleware(

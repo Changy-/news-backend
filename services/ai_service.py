@@ -12,6 +12,7 @@ from google import genai as new_genai
 from google.genai import types
 import struct
 import traceback
+import time
 
 AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").lower()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -33,6 +34,7 @@ def generate_audio(text):
         return None
 
     try:
+        start_time = time.time()
         client = new_genai.Client(api_key=GEMINI_API_KEY)
         
         # Explicit config to avoid "Model tried to generate text" error
@@ -47,11 +49,16 @@ def generate_audio(text):
             )
         )
 
+        # Prefix with explicit TTS instruction to prevent text generation
+        tts_prompt = f"Read the following text aloud exactly as written: {text}"
+
         response = client.models.generate_content(
             model='gemini-2.5-flash-preview-tts',
-            contents=text,
+            contents=tts_prompt,
             config=config
         )
+        tts_latency = time.time() - start_time
+        print(f"LATENCY: TTS API call took {tts_latency:.2f}s for {len(text)} chars", flush=True)
         # Verify structure: output should be in parts -> inline_data
         for part in response.candidates[0].content.parts:
             if part.inline_data:
@@ -130,20 +137,18 @@ def generate_summary(text):
     """
     Generates a concise summary (< 100 words) for the given text.
     """
-    print(f"DEBUG: Generating summary with provider {AI_PROVIDER}", flush=True)
     if AI_PROVIDER == "gemini":
         if not GEMINI_API_KEY or not model:
-            print("DEBUG: Missing Gemini Key or Model", flush=True)
             return "AI Service Unavailable: Missing Gemini API Key"
 
         prompt = f"Summarize the following news article in less than 100 words. Capture the key points clearly:\n\n{text}"
         try:
-            # print(f"DEBUG: Gemini Prompt: {prompt}", flush=True)
+            start_time = time.time()
             response = model.generate_content(prompt)
-            # print(f"DEBUG: Gemini Response: {response}", flush=True)
+            latency = time.time() - start_time
+            print(f"LATENCY: Gemini Summary took {latency:.2f}s", flush=True)
             return response.text
         except Exception as e:
-            print(f"DEBUG: Gemini Error: {e}", flush=True)
             return f"Error generating summary with Gemini: {str(e)}"
 
     elif AI_PROVIDER == "openai":
@@ -152,6 +157,7 @@ def generate_summary(text):
 
         prompt = f"Summarize the following news article in less than 100 words. Capture the key points clearly:\n\n{text}"
         try:
+            start_time = time.time()
             response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
@@ -159,6 +165,8 @@ def generate_summary(text):
                     {"role": "user", "content": prompt}
                 ]
             )
+            latency = time.time() - start_time
+            print(f"LATENCY: OpenAI Summary took {latency:.2f}s", flush=True)
             return response.choices[0].message.content
         except Exception as e:
             return f"Error generating summary with OpenAI: {str(e)}"
@@ -174,18 +182,24 @@ def chat_with_article(article_content, user_query, history=[]):
             return "AI Service Unavailable: Missing API Key"
 
         prompt = f"""
-        You are a helpful news assistant. 
-        Here is the context of a news article:
+        You are a helpful and conversational news assistant. 
+        
+        Context Article:
         {article_content}
         
-        User Question: {user_query}
+        User Input: {user_query}
         
-        Answer the user's question based ONLY on the provided article context. 
-        If the answer is not in the article, say so.
+        Instructions:
+        1. If the user asks a question about the article, answer it naturally using the article context.
+        2. If the user wants to move on, skip, or go to the next story (and they haven't been caught by the local 'next' command), acknowledge them briefly and suggest they say "next news".
+        3. Be concise and friendly.
         """
         
         try:
+            start_time = time.time()
             response = model.generate_content(prompt)
+            latency = time.time() - start_time
+            print(f"LATENCY: Gemini Chat took {latency:.2f}s", flush=True)
             return response.text
         except Exception as e:
             return f"Error processing query with Gemini: {str(e)}"
@@ -195,15 +209,19 @@ def chat_with_article(article_content, user_query, history=[]):
             return "AI Service Unavailable: Missing API Key"
 
         system_prompt = f"""
-        You are a helpful news assistant. 
-        Here is the context of a news article:
+        You are a helpful and conversational news assistant. 
+        
+        Context Article:
         {article_content}
         
-        Answer the user's question based ONLY on the provided article context. 
-        If the answer is not in the article, say so.
+        Instructions:
+        1. If the user asks a question about the article, answer it naturally using the article context.
+        2. If the user wants to move on, skip, or go to the next story, acknowledge them briefly and suggest they say "next news".
+        3. Be concise and friendly.
         """
 
         try:
+            start_time = time.time()
             response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
@@ -211,6 +229,8 @@ def chat_with_article(article_content, user_query, history=[]):
                     {"role": "user", "content": user_query}
                 ]
             )
+            latency = time.time() - start_time
+            print(f"LATENCY: OpenAI Chat took {latency:.2f}s", flush=True)
             return response.choices[0].message.content
         except Exception as e:
             return f"Error processing query with OpenAI: {str(e)}"
